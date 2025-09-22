@@ -1,29 +1,31 @@
 // api/capi.js
+import crypto from "crypto";
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(200).json({ message: "Meta CAPI endpoint ready" });
   }
 
   try {
-    // 1. Extract webhook payload from GHL
     const body = req.body;
 
-    // Example mapping: adjust these fields to match your GHL webhook payload
+    // --- Map GHL fields to event data ---
     const email = body.email || "";
     const phone = body.phone || "";
     const firstName = body.first_name || "";
     const lastName = body.last_name || "";
+    const eventType = body.event_type || "Lead"; // optional: send "Booking" or "Purchase"
+    const purchaseAmount = body.purchase_amount || 0;
+    const currency = body.currency || "NZD";
 
-    // 2. Required Meta event fields
-    const eventName = "Lead"; // You can change this to "CompleteRegistration" etc.
-    const eventId = `${Date.now()}-${Math.random()}`; // unique ID for deduplication
-    const eventTime = Math.floor(Date.now() / 1000); // Unix timestamp
+    const eventId = `${Date.now()}-${Math.random()}`; // deduplication
+    const eventTime = Math.floor(Date.now() / 1000);
 
-    // 3. Build payload for Meta CAPI
+    // --- Build Meta CAPI payload ---
     const payload = {
       data: [
         {
-          event_name: eventName,
+          event_name: eventType,
           event_time: eventTime,
           event_id: eventId,
           action_source: "website",
@@ -33,11 +35,15 @@ export default async function handler(req, res) {
             fn: firstName ? [hashSHA256(firstName)] : [],
             ln: lastName ? [hashSHA256(lastName)] : [],
           },
+          custom_data: eventType === "Purchase" ? {
+            value: purchaseAmount,
+            currency: currency
+          } : {},
         },
       ],
     };
 
-    // 4. Send to Meta CAPI
+    // --- Send to Meta CAPI ---
     const response = await fetch(
       `https://graph.facebook.com/v20.0/${process.env.PIXEL_ID}/events?access_token=${process.env.ACCESS_TOKEN}`,
       {
@@ -49,13 +55,17 @@ export default async function handler(req, res) {
 
     const fbResult = await response.json();
 
-    // 5. Respond to GHL (and log)
-    console.log("Forwarded to Meta:", fbResult);
+    // --- Logs for debugging ---
+    console.log("Webhook received from GHL:", JSON.stringify(body, null, 2));
+    console.log("Payload sent to Meta CAPI:", JSON.stringify(payload, null, 2));
+    console.log("Response from Meta:", fbResult);
+
     return res.status(200).json({
       status: "success",
       event_id: eventId,
       meta_response: fbResult,
     });
+
   } catch (error) {
     console.error("CAPI error:", error);
     return res.status(500).json({ status: "error", message: error.message });
@@ -63,7 +73,6 @@ export default async function handler(req, res) {
 }
 
 // --- Helper function: SHA256 hash required by Meta ---
-import crypto from "crypto";
 function hashSHA256(value) {
   return crypto.createHash("sha256").update(value.trim().toLowerCase()).digest("hex");
 }
