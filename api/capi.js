@@ -1,4 +1,3 @@
-// api/capi.js
 import crypto from "crypto";
 
 export default async function handler(req, res) {
@@ -9,11 +8,11 @@ export default async function handler(req, res) {
   try {
     const body = req.body;
 
-    // Capture event_type from webhook custom data
-    const eventType = body.event_type || "lead"; // default to lead
+    // Check if event_type exists
+    const eventType = (body.event_type || "").toLowerCase();
 
-    // Decide Meta event name
-    let eventName = "Lead";
+    // Map event_type to Meta event name
+    let eventName = "Lead"; // default
     if (eventType === "appointment") eventName = "CompleteRegistration";
     if (eventType === "purchase") eventName = "Purchase";
 
@@ -36,8 +35,8 @@ export default async function handler(req, res) {
           custom_data:
             eventName === "Purchase"
               ? {
+                  value: body.value || 0,
                   currency: "NZD",
-                  value: body.amount || 0,
                 }
               : {},
         },
@@ -54,6 +53,9 @@ export default async function handler(req, res) {
     );
 
     const fbResult = await response.json();
+
+    // Log full payload and Meta response
+    console.log("Webhook payload received:", JSON.stringify(body, null, 2));
     console.log("Forwarded to Meta:", JSON.stringify(payload, null, 2), fbResult);
 
     return res.status(200).json({ status: "success", event_id: eventId, meta_response: fbResult });
