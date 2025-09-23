@@ -7,7 +7,7 @@ export default async function handler(req, res) {
 
   let body = {};
 
-  // Parse webhook body correctly
+  // 1️⃣ Parse the webhook body safely
   try {
     body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
   } catch (err) {
@@ -15,17 +15,38 @@ export default async function handler(req, res) {
     return res.status(400).json({ status: "error", message: "Invalid JSON" });
   }
 
-  // Map event_type to Meta event_name
-  const eventType = (body.event_type || "").toLowerCase();
-  let eventName = "Lead";
+  // 2️⃣ Extract customData from GHL webhook
+  const data = body.customData || {};
+
+  // 3️⃣ Map event_type to Meta event_name
+  const eventType = (data.event_type || "").toLowerCase();
+  let eventName = "Lead"; // default
   if (eventType === "appointment") eventName = "CompleteRegistration";
   if (eventType === "purchase") eventName = "Purchase";
 
-  // Deduplication and timestamp
+  // 4️⃣ Deduplication ID and timestamp
   const eventId = `${Date.now()}-${Math.random()}`;
   const eventTime = Math.floor(Date.now() / 1000);
 
-  // Build payload for Meta CAPI
+  // 5️⃣ Hash user data
+  const userData = {
+    em: data.email ? [hashSHA256(data.email)] : [],
+    ph: data.phone ? [hashSHA256(data.phone)] : [],
+    fn: data.first_name ? [hashSHA256(data.first_name)] : [],
+    ln: data.last_name ? [hashSHA256(data.last_name)] : [],
+  };
+
+  // 6️⃣ Custom data for purchases
+  const customData =
+    eventName === "Purchase"
+      ? {
+          value: data.order_value || 0,
+          currency: data.currency || "NZD",
+          content_ids: data.order_id ? [data.order_id] : [],
+        }
+      : {};
+
+  // 7️⃣ Build Meta CAPI payload
   const payload = {
     data: [
       {
@@ -33,25 +54,13 @@ export default async function handler(req, res) {
         event_time: eventTime,
         event_id: eventId,
         action_source: "website",
-        user_data: {
-          em: body.email ? [hashSHA256(body.email)] : [],
-          ph: body.phone ? [hashSHA256(body.phone)] : [],
-          fn: body.first_name ? [hashSHA256(body.first_name)] : [],
-          ln: body.last_name ? [hashSHA256(body.last_name)] : [],
-        },
-        custom_data:
-          eventName === "Purchase"
-            ? {
-                value: body.value || 0,
-                currency: "NZD",
-                content_ids: body.order_id ? [body.order_id] : [],
-              }
-            : {},
+        user_data: userData,
+        custom_data: customData,
       },
     ],
   };
 
-  // Send to Meta
+  // 8️⃣ Send payload to Meta
   try {
     const response = await fetch(
       `https://graph.facebook.com/v20.0/${process.env.PIXEL_ID}/events?access_token=${process.env.ACCESS_TOKEN}`,
@@ -61,9 +70,10 @@ export default async function handler(req, res) {
         body: JSON.stringify(payload),
       }
     );
+
     const fbResult = await response.json();
 
-    // Logs for debugging
+    // 9️⃣ Logs for debugging
     console.log("Webhook payload received:", JSON.stringify(body, null, 2));
     console.log("Payload sent to Meta:", JSON.stringify(payload, null, 2));
     console.log("Meta response:", fbResult);
@@ -81,7 +91,7 @@ export default async function handler(req, res) {
   }
 }
 
-// Helper: SHA256 hash required by Meta
+// 10️⃣ Helper: SHA256 hash required by Meta
 function hashSHA256(value) {
   return crypto.createHash("sha256").update(value.trim().toLowerCase()).digest("hex");
 }
