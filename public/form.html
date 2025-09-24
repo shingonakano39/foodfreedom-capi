@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Food Freedom Sign Up</title>
+</head>
+<body>
+  <h2>Complete Your Sign Up</h2>
+
+  <form id="capiForm">
+    <input type="text" name="first_name" placeholder="First Name" required><br>
+    <input type="text" name="last_name" placeholder="Last Name" required><br>
+    <input type="email" name="email" placeholder="Email" required><br>
+    <input type="tel" name="phone" placeholder="Phone" required><br>
+    <button type="submit">Submit</button>
+  </form>
+
+  <script>
+    const form = document.getElementById("capiForm");
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const formData = new FormData(form);
+      const data = Object.fromEntries(formData.entries());
+      data.event_name = "Lead"; // Optional: change if needed
+
+      try {
+        const response = await fetch("/api/capi", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data)
+        });
+
+        const result = await response.json();
+        console.log("CAPI result:", result);
+
+        // Redirect to thank you page
+        window.location.href = "/thankyou.html";
+      } catch (err) {
+        console.error("Error sending event:", err);
+        alert("Something went wrong. Please try again.");
+      }
+    });
+  </script>
+</body>
+</html>
