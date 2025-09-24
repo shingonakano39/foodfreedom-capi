@@ -15,6 +15,10 @@ export default async function handler(req, res) {
     const pixelId = process.env.META_PIXEL_ID;
 
     if (!accessToken || !pixelId) {
+      console.error("❌ Missing environment variables:", {
+        META_CAPI_TOKEN: !!accessToken,
+        META_PIXEL_ID: !!pixelId,
+      });
       return res.status(500).json({ error: "Missing META_CAPI_TOKEN or META_PIXEL_ID" });
     }
 
@@ -38,6 +42,9 @@ export default async function handler(req, res) {
       ],
     };
 
+    // Debug log payload
+    console.log("📤 Sending payload to Meta:", JSON.stringify(payload, null, 2));
+
     // Send to Meta
     const fbResponse = await fetch(url, {
       method: "POST",
@@ -52,6 +59,9 @@ export default async function handler(req, res) {
 
     const fbData = await fbResponse.json();
 
+    // Debug log Meta response
+    console.log("📥 Meta response:", JSON.stringify(fbData, null, 2));
+
     if (!fbResponse.ok) {
       return res.status(400).json({
         error: "Failed to send event",
@@ -64,8 +74,8 @@ export default async function handler(req, res) {
       fbData,
     });
   } catch (err) {
-    console.error("CAPI Error:", err);
-    return res.status(500).json({ error: "Internal Server Error" });
+    console.error("❌ CAPI Error:", err);
+    return res.status(500).json({ error: "Internal Server Error", details: err.message });
   }
 }
 
