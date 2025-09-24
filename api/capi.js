@@ -17,7 +17,8 @@ export default async function handler(req, res) {
 
   console.log("✅ Webhook payload received:", JSON.stringify(body, null, 2));
 
-  const eventType = (body.event_type || "").toLowerCase();
+  const eventType =
+  (body.event_type || body?.customData?.event_type || "").toLowerCase();
 
   // Default event mapping
   let eventName = "Lead";
