@@ -1,70 +1,70 @@
-// /api/capi.js
-
-import fetch from "node-fetch"; // make sure node-fetch is installed
+// api/capi.js
 
 export default async function handler(req, res) {
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
+
   try {
-    // Get your system user access token from environment variable
-    const ACCESS_TOKEN = process.env.META_CAPI_TOKEN; 
-    if (!ACCESS_TOKEN) {
-      return res.status(500).json({ error: "META_CAPI_TOKEN not set in env" });
-    }
+    const { email, phone, first_name, last_name, event_name } = req.body;
 
-    // Replace <PIXEL_ID> with your actual Pixel ID
-    const PIXEL_ID = process.env.META_PIXEL_ID;
-    if (!PIXEL_ID) {
-      return res.status(500).json({ error: "META_PIXEL_ID not set in env" });
-    }
+    // --- Replace with your actual values ---
+    const accessToken = "YOUR_META_CAPI_TOKEN";
+    const pixelId = "YOUR_META_PIXEL_ID";
 
-    // Example payload from your webhook
-    const { email, phone, first_name, last_name, order_value, currency } = req.body;
+    // Meta CAPI endpoint
+    const url = `https://graph.facebook.com/v20.0/${pixelId}/events`;
 
-    // Hashing helper if needed (Meta requires SHA256)
-    const crypto = require("crypto");
-    const hash = (str) => crypto.createHash("sha256").update(str.trim().toLowerCase()).digest("hex");
-
-    const eventPayload = {
+    // Event payload
+    const payload = {
       data: [
         {
-          event_name: "Purchase",
+          event_name: event_name || "Lead",
           event_time: Math.floor(Date.now() / 1000),
           action_source: "website",
           user_data: {
-            em: email ? [hash(email)] : [],
-            ph: phone ? [hash(phone)] : [],
-            fn: first_name ? [hash(first_name)] : [],
-            ln: last_name ? [hash(last_name)] : [],
-          },
-          custom_data: {
-            currency: currency || "NZD",
-            value: order_value || 1,
+            em: email ? [hash(email)] : undefined,
+            ph: phone ? [hash(phone)] : undefined,
+            fn: first_name ? [hash(first_name)] : undefined,
+            ln: last_name ? [hash(last_name)] : undefined,
           },
         },
       ],
     };
 
-    // Send event to Meta CAPI
-    const response = await fetch(
-      `https://graph.facebook.com/v17.0/${PIXEL_ID}/events?access_token=${ACCESS_TOKEN}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(eventPayload),
-      }
-    );
+    // Send to Meta
+    const fbResponse = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        access_token: accessToken,
+        ...payload,
+      }),
+    });
 
-    const data = await response.json();
+    const fbData = await fbResponse.json();
 
-    // Log response for debugging
-    console.log("Meta CAPI response:", data);
-
-    if (data.error) {
-      return res.status(500).json({ error: data.error });
+    if (!fbResponse.ok) {
+      return res.status(400).json({
+        error: "Failed to send event",
+        details: fbData,
+      });
     }
 
-    return res.status(200).json({ success: true, metaResponse: data });
+    return res.status(200).json({
+      message: "Event sent successfully",
+      fbData,
+    });
   } catch (err) {
     console.error("CAPI Error:", err);
-    return res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: "Internal Server Error" });
   }
+}
+
+// --- Simple SHA256 hash function ---
+import crypto from "crypto";
+function hash(value) {
+  return crypto.createHash("sha256").update(value.trim().toLowerCase()).digest("hex");
 }
