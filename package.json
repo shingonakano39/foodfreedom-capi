@@ -1,0 +1,15 @@
+{
+  "name": "capi-server",
+  "version": "1.0.0",
+  "description": "Meta CAPI serverless function on Vercel",
+  "main": "api/capi.js",
+  "type": "module",
+  "scripts": {
+    "dev": "vercel dev",
+    "start": "node api/capi.js"
+  },
+  "dependencies": {},
+  "engines": {
+    "node": "18.x"
+  }
+}
