@@ -10,12 +10,12 @@ export default async function handler(req, res) {
   try {
     const { email, phone, first_name, last_name, event_name } = req.body;
 
-    // --- Read from environment variables set in Vercel ---
+    // Read from environment variables
     const accessToken = process.env.META_CAPI_TOKEN;
     const pixelId = process.env.META_PIXEL_ID;
 
     if (!accessToken || !pixelId) {
-      console.error("❌ Missing environment variables:", {
+      console.error("❌ Missing environment variables", {
         META_CAPI_TOKEN: !!accessToken,
         META_PIXEL_ID: !!pixelId,
       });
@@ -42,44 +42,29 @@ export default async function handler(req, res) {
       ],
     };
 
-    // Debug log payload
-    console.log("📤 Sending payload to Meta:", JSON.stringify(payload, null, 2));
+    // Debug logs
+    console.log("📤 Payload sent:", JSON.stringify(payload, null, 2));
 
-    // Send to Meta
     const fbResponse = await fetch(url, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        access_token: accessToken,
-        ...payload,
-      }),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ access_token: accessToken, ...payload }),
     });
 
     const fbData = await fbResponse.json();
-
-    // Debug log Meta response
     console.log("📥 Meta response:", JSON.stringify(fbData, null, 2));
 
     if (!fbResponse.ok) {
-      return res.status(400).json({
-        error: "Failed to send event",
-        details: fbData,
-      });
+      return res.status(400).json({ error: "Failed to send event", details: fbData });
     }
 
-    return res.status(200).json({
-      message: "Event sent successfully",
-      fbData,
-    });
+    return res.status(200).json({ message: "Event sent successfully", fbData });
   } catch (err) {
     console.error("❌ CAPI Error:", err);
     return res.status(500).json({ error: "Internal Server Error", details: err.message });
   }
 }
 
-// --- Simple SHA256 hash function ---
 function hash(value) {
   return crypto.createHash("sha256").update(value.trim().toLowerCase()).digest("hex");
 }
