@@ -54,7 +54,7 @@ app.post("/lead", async (req, res) => {
   res.json(response);
 });
 
-// Route: CompleteRegistration (Call Booking)
+// Route: Schedule (Call Booking)
 app.post("/registration", async (req, res) => {
   const { email, phone, first_name, last_name, contact_id } = req.body;
 
@@ -65,7 +65,7 @@ app.post("/registration", async (req, res) => {
     ln: [last_name]
   };
 
-  const response = await sendEvent("CompleteRegistration", contact_id, user_data, {
+  const response = await sendEvent("Schedule", contact_id, user_data, {
     content_name: "Food Freedom Call Booking",
     currency: "NZD",
     value: 0
