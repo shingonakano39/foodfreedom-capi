@@ -8,9 +8,8 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { email, phone, first_name, last_name, event_name } = req.body;
+    const { email, phone, first_name, last_name, event_name, event_id } = req.body;
 
-    // Read from environment variables
     const accessToken = process.env.META_CAPI_TOKEN;
     const pixelId = process.env.META_PIXEL_ID;
 
@@ -22,16 +21,15 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: "Missing META_CAPI_TOKEN or META_PIXEL_ID" });
     }
 
-    // Meta CAPI endpoint
     const url = `https://graph.facebook.com/v20.0/${pixelId}/events`;
 
-    // Event payload
     const payload = {
       data: [
         {
           event_name: event_name || "Lead",
           event_time: Math.floor(Date.now() / 1000),
           action_source: "website",
+          event_id: event_id,   // important for deduplication
           user_data: {
             em: email ? [hash(email)] : undefined,
             ph: phone ? [hash(phone)] : undefined,
@@ -42,7 +40,6 @@ export default async function handler(req, res) {
       ],
     };
 
-    // Debug logs
     console.log("📤 Payload sent:", JSON.stringify(payload, null, 2));
 
     const fbResponse = await fetch(url, {
