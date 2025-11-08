@@ -29,7 +29,7 @@ export default async function handler(req, res) {
           event_name: event_name || "Lead",
           event_time: Math.floor(Date.now() / 1000),
           action_source: "website",
-          event_id: event_id,   // important for deduplication
+          event_id: event_id,  // for deduplication
           user_data: {
             em: email ? [hash(email)] : undefined,
             ph: phone ? [hash(phone)] : undefined,
