@@ -8,6 +8,7 @@ export default async function handler(req, res) {
   }
 
   try {
+    console.log("🧾 Incoming request body:", req.body);
     const { email, phone, first_name, last_name, event_name, event_id } = req.body;
 
     const accessToken = process.env.META_CAPI_TOKEN;
