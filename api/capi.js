@@ -11,6 +11,17 @@ export default async function handler(req, res) {
     console.log("🧾 Incoming request body:", req.body);
     const { email, phone, first_name, last_name, event_name, event_id } = req.body;
 
+  let finalEventName = event_name;
+
+  if (!finalEventName) {
+  if (req.body.calendar && req.body.calendar.status === "booked") {
+    finalEventName = "Schedule";
+  } else if (req.body.workflow && req.body.workflow.name?.includes("Meta CAPI")) {
+    finalEventName = "CompleteRegistration";
+  } else {
+    finalEventName = "Lead";
+  }
+
     const accessToken = process.env.META_CAPI_TOKEN;
     const pixelId = process.env.META_PIXEL_ID;
 
@@ -27,7 +38,7 @@ export default async function handler(req, res) {
     const payload = {
       data: [
         {
-          event_name: event_name || "Lead",
+          event_name: event_name: finalEventName,
           event_time: Math.floor(Date.now() / 1000),
           action_source: "website",
           event_id: event_id,  // for deduplication
