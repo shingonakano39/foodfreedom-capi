@@ -1,79 +1,77 @@
 // api/capi.js
 
-import crypto from "crypto";
-
+// ✅ api/capi.js
 export default async function handler(req, res) {
+  // --- CORS setup (fixes browser block) ---
+  res.setHeader("Access-Control-Allow-Origin", "https://foodfreedom.consciouseating.info");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+
+  // --- Handle preflight request ---
+  if (req.method === "OPTIONS") {
+    return res.status(200).end();
+  }
+
+  // --- Handle POST requests ---
   if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ success: false, message: "Method Not Allowed" });
   }
 
   try {
-    console.log("🧾 Incoming request body:", req.body);
-    const { email, phone, first_name, last_name, event_name, event_id } = req.body;
+    const body = req.body;
+    console.log("📩 Incoming CAPI data:", body);
 
-  let finalEventName = event_name;
+    // --- Replace this with YOUR Facebook Pixel ID and Access Token ---
+    const FB_PIXEL_ID = "563428176815222"; // <-- your pixel ID
+    const FB_ACCESS_TOKEN = "EAAUTZCA6edfcBPuSaZCOJIzWerlb5pl3R0tUUpEDZCZBXIzc8yxzh1lNQT5iyzNoT0wmUqpUi6eTMZBhdEEbY9MUkKBXMVEUwOxWykC6jHbT5G3WI5l9LgbCKyfZBQPx6A1ucTC6GhizteZBmr7jree5RX0pqnpmdXGKeHFG3MFdVgrqJUzq0pldhwbRrMKwwZDZD"; // <-- your system user access token
+    const FB_API_URL = `https://graph.facebook.com/v18.0/${FB_PIXEL_ID}/events?access_token=${FB_ACCESS_TOKEN}`;
 
-  if (!finalEventName) {
-  if (req.body.calendar && req.body.calendar.status === "booked") {
-    finalEventName = "Schedule";
-  } else if (req.body.workflow && req.body.workflow.name?.includes("Meta CAPI")) {
-    finalEventName = "CompleteRegistration";
-  } else {
-    finalEventName = "Lead";
-  }
-
-    const accessToken = process.env.META_CAPI_TOKEN;
-    const pixelId = process.env.META_PIXEL_ID;
-
-    if (!accessToken || !pixelId) {
-      console.error("❌ Missing environment variables", {
-        META_CAPI_TOKEN: !!accessToken,
-        META_PIXEL_ID: !!pixelId,
-      });
-      return res.status(500).json({ error: "Missing META_CAPI_TOKEN or META_PIXEL_ID" });
-    }
-
-    const url = `https://graph.facebook.com/v20.0/${pixelId}/events`;
-
-    const payload = {
+    // --- Build Facebook Event payload ---
+    const fbEvent = {
       data: [
         {
-          event_name: event_name: finalEventName,
+          event_name: body.event_name || "Lead",
           event_time: Math.floor(Date.now() / 1000),
           action_source: "website",
-          event_id: event_id,  // for deduplication
+          event_source_url: body.event_source_url || "https://foodfreedom.consciouseating.info",
           user_data: {
-            em: email ? [hash(email)] : undefined,
-            ph: phone ? [hash(phone)] : undefined,
-            fn: first_name ? [hash(first_name)] : undefined,
-            ln: last_name ? [hash(last_name)] : undefined,
+            em: body.email ? sha256(body.email.trim().toLowerCase()) : undefined,
+            fn: body.first_name ? sha256(body.first_name.trim().toLowerCase()) : undefined,
+            ln: body.last_name ? sha256(body.last_name.trim().toLowerCase()) : undefined,
+            ph: body.phone ? sha256(body.phone.replace(/\D/g, "")) : undefined,
+            client_ip_address: req.headers["x-forwarded-for"] || "0.0.0.0",
+            client_user_agent: req.headers["user-agent"] || "",
+          },
+          custom_data: {
+            source: body.source || "HighLevel Funnel",
+            value: body.value || 0,
           },
         },
       ],
     };
 
-    console.log("📤 Payload sent:", JSON.stringify(payload, null, 2));
+    console.log("📤 Sending to Facebook CAPI:", fbEvent);
 
-    const fbResponse = await fetch(url, {
+    // --- Send to Facebook ---
+    const fbResponse = await fetch(FB_API_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ access_token: accessToken, ...payload }),
+      body: JSON.stringify(fbEvent),
     });
 
     const fbData = await fbResponse.json();
-    console.log("📥 Meta response:", JSON.stringify(fbData, null, 2));
 
-    if (!fbResponse.ok) {
-      return res.status(400).json({ error: "Failed to send event", details: fbData });
-    }
-
-    return res.status(200).json({ message: "Event sent successfully", fbData });
-  } catch (err) {
-    console.error("❌ CAPI Error:", err);
-    return res.status(500).json({ error: "Internal Server Error", details: err.message });
+    // --- Log and return ---
+    console.log("✅ Facebook CAPI Response:", fbData);
+    res.status(200).json({ success: true, fbResponse: fbData });
+  } catch (error) {
+    console.error("❌ Server error:", error);
+    res.status(500).json({ success: false, error: error.message });
   }
 }
 
-function hash(value) {
-  return crypto.createHash("sha256").update(value.trim().toLowerCase()).digest("hex");
+// --- Simple SHA256 hash helper (for user_data security) ---
+import crypto from "crypto";
+function sha256(data) {
+  return crypto.createHash("sha256").update(data).digest("hex");
 }
