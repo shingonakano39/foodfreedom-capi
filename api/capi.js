@@ -46,8 +46,8 @@ export default async function handler(req, res) {
     console.log("📤 Sending to Facebook CAPI:", fbEvent);
 
     // --- Send to Meta CAPI ---
-    const pixel_id = process.env.563428176815222;        // your Pixel ID in Vercel env
-    const access_token = process.env.EAAUTZCA6edfcBPuSaZCOJIzWerlb5pl3R0tUUpEDZCZBXIzc8yxzh1lNQT5iyzNoT0wmUqpUi6eTMZBhdEEbY9MUkKBXMVEUwOxWykC6jHbT5G3WI5l9LgbCKyfZBQPx6A1ucTC6GhizteZBmr7jree5RX0pqnpmdXGKeHFG3MFdVgrqJUzq0pldhwbRrMKwwZDZD; // your Access Token in Vercel env
+    const pixel_id = process.env.META_PIXEL_ID;        // your Pixel ID in Vercel env
+    const access_token = process.env.META_ACCESS_TOKEN; // your Access Token in Vercel env
 
     const response = await fetch(`https://graph.facebook.com/v17.0/${pixel_id}/events`, {
       method: "POST",
