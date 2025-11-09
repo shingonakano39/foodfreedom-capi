@@ -21,7 +21,7 @@ export default async function handler(req, res) {
     const fbEvent = {
       data: [
         {
-          event_name,                      // TOP LEVEL event_name — Meta requires this
+          event_name, // TOP LEVEL event_name — Meta requires this
           event_time: Math.floor(Date.now() / 1000),
           action_source: "website",
           event_source_url: body.event_source_url || "https://foodfreedom.consciouseating.info",
@@ -36,9 +36,9 @@ export default async function handler(req, res) {
           custom_data: {
             source: body.source || "HighLevel Funnel",
             value: body.value || 0,
-            // REMOVE event_name from here — must be top-level
+            // REMOVE event_name from custom_data — must be top-level
           },
-          event_id, // Optional deduplication
+          event_id, // optional deduplication
         },
       ],
     };
@@ -46,8 +46,8 @@ export default async function handler(req, res) {
     console.log("📤 Sending to Facebook CAPI:", fbEvent);
 
     // --- Send to Meta CAPI ---
-    const pixel_id = process.env.563428176815222;       // your pixel ID
-    const access_token = process.env.EAAUTZCA6edfcBPuSaZCOJIzWerlb5pl3R0tUUpEDZCZBXIzc8yxzh1lNQT5iyzNoT0wmUqpUi6eTMZBhdEEbY9MUkKBXMVEUwOxWykC6jHbT5G3WI5l9LgbCKyfZBQPx6A1ucTC6GhizteZBmr7jree5RX0pqnpmdXGKeHFG3MFdVgrqJUzq0pldhwbRrMKwwZDZD; // your access token
+    const pixel_id = process.env.META_PIXEL_ID;        // your Pixel ID in Vercel env
+    const access_token = process.env.META_ACCESS_TOKEN; // your Access Token in Vercel env
 
     const response = await fetch(`https://graph.facebook.com/v17.0/${pixel_id}/events`, {
       method: "POST",
