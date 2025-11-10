@@ -4,7 +4,7 @@ export default async function handler(req, res) {
   try {
     const body = req.body;
 
-    // Use your existing env variable names exactly as before
+    // ✅ keep your original env names
     const pixelid = process.env.pixelid;
     const accesstoken = process.env.accesstoken;
 
@@ -37,14 +37,14 @@ export default async function handler(req, res) {
       user_data,
     };
 
-    // ✅ Add test_event_code only if provided
+    // ✅ keep your test_event_code if provided
     const payload = { data: [event] };
     if (body.test_event_code) {
       payload.test_event_code = body.test_event_code;
       console.log("🧪 Test mode active:", body.test_event_code);
     }
 
-    // ✅ Send to Meta CAPI
+    // ✅ your original fetch pattern
     const fbResponse = await fetch(
       `https://graph.facebook.com/v17.0/${pixelid}/events?access_token=${accesstoken}`,
       {
