@@ -1,27 +1,23 @@
-// File: /api/capi.js
-
 import crypto from "crypto";
 
 export default async function handler(req, res) {
   try {
     const body = req.body;
 
-    // Required: your Meta Pixel ID and Access Token
-    const pixelId = process.env.META_PIXEL_ID;
-    const accessToken = process.env.META_ACCESS_TOKEN;
+    // Use your existing env variable names exactly as before
+    const pixelid = process.env.pixelid;
+    const accesstoken = process.env.accesstoken;
 
-    if (!pixelId || !accessToken) {
+    if (!pixelid || !accesstoken) {
       console.error("❌ Missing Meta Pixel credentials in environment variables.");
       return res.status(500).json({ error: "Missing Meta Pixel credentials." });
     }
 
-    // Hash helper functions
     const hashData = (data) => {
       if (!data) return null;
       return crypto.createHash("sha256").update(data.trim().toLowerCase()).digest("hex");
     };
 
-    // Build user data
     const user_data = {
       em: hashData(body.email),
       ph: hashData(body.phone),
@@ -32,7 +28,6 @@ export default async function handler(req, res) {
       fbc: body.fbc || null,
     };
 
-    // Construct event
     const event = {
       event_name: body.event_name || "Schedule",
       event_time: Math.floor(Date.now() / 1000),
@@ -42,22 +37,22 @@ export default async function handler(req, res) {
       user_data,
     };
 
-    // ✅ Include test_event_code if present
+    // ✅ Add test_event_code only if provided
+    const payload = { data: [event] };
     if (body.test_event_code) {
-      event.test_event_code = body.test_event_code;
+      payload.test_event_code = body.test_event_code;
+      console.log("🧪 Test mode active:", body.test_event_code);
     }
 
-    // Prepare payload
-    const payload = {
-      data: [event],
-    };
-
-    // Send to Meta Conversion API
-    const fbResponse = await fetch(`https://graph.facebook.com/v17.0/${pixelId}/events?access_token=${accessToken}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
+    // ✅ Send to Meta CAPI
+    const fbResponse = await fetch(
+      `https://graph.facebook.com/v17.0/${pixelid}/events?access_token=${accesstoken}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      }
+    );
 
     const fbData = await fbResponse.json();
 
