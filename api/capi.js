@@ -49,10 +49,10 @@ export default async function handler(req, res) {
     const pixel_id = process.env.META_PIXEL_ID;        // your Pixel ID in Vercel env
     const access_token = process.env.META_ACCESS_TOKEN; // your Access Token in Vercel env
 
-    const response = await fetch(`https://graph.facebook.com/v17.0/${pixel_id}/events`, {
+    fetch(`https://graph.facebook.com/v17.0/${pixel_id}/events?access_token=${access_token}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ data: fbEvent.data, access_token }),
+      body: JSON.stringify({ data: fbEvent.data }),
     });
 
     const result = await response.json();
