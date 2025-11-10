@@ -25,57 +25,55 @@ export default async function handler(req, res) {
     const body = req.body;
     console.log("🪵 Incoming body:", body);
 
-    // --- Extract event name safely ---
-    const rawevent =
+    // --- Determine event name (case-sensitive fixes applied) ---
+    const rawEvent =
       body?.event_name ||
-      body?.customdata?.event_name ||
+      body?.customData?.event_name || // fixed uppercase D
       body?.type ||
       body?.contact_type ||
       "lead";
 
-    const eventname = rawevent.toLowerCase().includes("schedule")
-      ? "Schedule"
-      : "Lead";
+    const eventName = rawEvent.toLowerCase().includes("schedule") ? "Schedule" : "Lead";
 
-    console.log(`📤 Sending event to Facebook: ${eventname}`);
+    console.log(`📤 Sending event to Facebook: ${eventName}`);
 
-    // --- Fallback event time ---
-    const eventtime = Math.floor(Date.now() / 1000);
+    // --- Event timestamp ---
+    const eventTime = Math.floor(Date.now() / 1000);
 
     // --- Build user data ---
-    const email = body.email || body?.customdata?.email || "";
-    const phone = body.phone || body?.customdata?.phone || "";
-    const firstName = body.first_name || body?.customdata?.first_name || "";
-    const lastName = body.last_name || body?.customdata?.last_name || "";
+    const email = body.email || body?.customData?.email || "";
+    const phone = body.phone || body?.customData?.phone || "";
+    const firstName = body.first_name || body?.customData?.first_name || "";
+    const lastName = body.last_name || body?.customData?.last_name || "";
 
-    // --- Normalize phone (remove spaces, dashes, etc.) ---
     const normalizedPhone = phone.replace(/[^+\d]/g, "");
 
-    const userdata = {
+    const userData = {
       em: email ? hash(email.trim().toLowerCase()) : undefined,
       ph: normalizedPhone ? hash(normalizedPhone) : undefined,
       fn: firstName ? hash(firstName.trim().toLowerCase()) : undefined,
       ln: lastName ? hash(lastName.trim().toLowerCase()) : undefined,
-      client_ip_address: req.headers["x-forwarded-for"] || req.socket?.remoteAddress,
+      client_ip_address: req.headers["x-forwarded-for"] || req.socket?.remoteAddress || "0.0.0.0",
       client_user_agent: req.headers["user-agent"] || "",
     };
 
-    // --- Build event payload ---
-    const eventid = `${body.contact_id || Date.now()}-${eventname}`;
+    // --- Event ID for deduplication ---
+    const eventId = `${body.contact_id || Date.now()}-${eventName}`;
 
+    // --- Build final payload for Meta CAPI ---
     const payload = {
       data: [
         {
-          event_name: eventname,
-          event_time: eventtime,
+          event_name: eventName,
+          event_time: eventTime,
           action_source: "website",
           event_source_url: body.event_source_url || "https://foodfreedom.consciouseating.info",
-          user_data: userdata,
+          user_data: userData,
           custom_data: {
             contact_id: body.contact_id || "",
             source: body.contact_source || "",
           },
-          event_id: eventid,
+          event_id: eventId,
         },
       ],
       access_token: access_token,
@@ -84,20 +82,20 @@ export default async function handler(req, res) {
     console.log("📦 Final payload:", JSON.stringify(payload, null, 2));
 
     // --- Send to Meta CAPI ---
-    const fbresponse = await fetch(`https://graph.facebook.com/v18.0/${pixel_id}/events`, {
+    const fbResponse = await fetch(`https://graph.facebook.com/v18.0/${pixel_id}/events`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
 
-    const fbresult = await fbresponse.json();
-    console.log("✅ Facebook CAPI Response:", fbresult);
+    const fbResult = await fbResponse.json();
+    console.log("✅ Facebook CAPI Response:", fbResult);
 
-    if (!fbresponse.ok) {
-      return res.status(400).json({ error: "Facebook API error", details: fbresult });
+    if (!fbResponse.ok) {
+      return res.status(400).json({ error: "Facebook API error", details: fbResult });
     }
 
-    return res.status(200).json({ success: true, fbresult });
+    return res.status(200).json({ success: true, fbResult });
   } catch (err) {
     console.error("🔥 CAPI handler error:", err);
     return res.status(500).json({ error: "Internal server error", details: err.message });
