@@ -9,7 +9,7 @@ export default async function handler(req, res) {
     const pixel_id = process.env.META_PIXEL_ID;
     const access_token = process.env.META_ACCESS_TOKEN;
 
-    if (!pixelId || !accessToken) {
+    if (!pixel_id || !access_token) {
       console.error("❌ Missing environment variables for Pixel ID or Access Token");
       return res.status(500).json({ error: "Missing environment variables" });
     }
