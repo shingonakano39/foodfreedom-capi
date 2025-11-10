@@ -1,103 +1,72 @@
-// api/capi.js
+// File: /api/capi.js
+
 import crypto from "crypto";
 
-// --- Simple SHA256 hash function for user data (Meta requires hashing) ---
-function hash(value) {
-  return crypto.createHash("sha256").update(value).digest("hex");
-}
-
 export default async function handler(req, res) {
-  // --- Allow only POST ---
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
-  }
-
   try {
-    // --- Environment variables ---
-    const pixel_id = process.env.META_PIXEL_ID;
-    const access_token = process.env.META_ACCESS_TOKEN;
+    const body = req.body;
 
-    if (!pixel_id || !access_token) {
-      console.error("❌ Missing environment variables for Pixel ID or Access Token");
-      return res.status(500).json({ error: "Missing environment variables" });
+    // Required: your Meta Pixel ID and Access Token
+    const pixelId = process.env.META_PIXEL_ID;
+    const accessToken = process.env.META_ACCESS_TOKEN;
+
+    if (!pixelId || !accessToken) {
+      console.error("❌ Missing Meta Pixel credentials in environment variables.");
+      return res.status(500).json({ error: "Missing Meta Pixel credentials." });
     }
 
-    const body = req.body;
-    console.log("🪵 Incoming body:", body);
-
-    // --- Determine event name (case-sensitive fixes applied) ---
-    const rawEvent =
-      body?.event_name ||
-      body?.customData?.event_name || // fixed uppercase D
-      body?.type ||
-      body?.contact_type ||
-      "lead";
-
-    const eventName = rawEvent.toLowerCase().includes("schedule") ? "Schedule" : "Lead";
-
-    console.log(`📤 Sending event to Facebook: ${eventName}`);
-
-    // --- Event timestamp ---
-    const eventTime = Math.floor(Date.now() / 1000);
-
-    // --- Build user data ---
-    const email = body.email || body?.customData?.email || "";
-    const phone = body.phone || body?.customData?.phone || "";
-    const firstName = body.first_name || body?.customData?.first_name || "";
-    const lastName = body.last_name || body?.customData?.last_name || "";
-
-    const normalizedPhone = phone.replace(/[^+\d]/g, "");
-
-    const userData = {
-      em: email ? hash(email.trim().toLowerCase()) : undefined,
-      ph: normalizedPhone ? hash(normalizedPhone) : undefined,
-      fn: firstName ? hash(firstName.trim().toLowerCase()) : undefined,
-      ln: lastName ? hash(lastName.trim().toLowerCase()) : undefined,
-      client_ip_address: req.headers["x-forwarded-for"] || req.socket?.remoteAddress || "0.0.0.0",
-      client_user_agent: req.headers["user-agent"] || "",
+    // Hash helper functions
+    const hashData = (data) => {
+      if (!data) return null;
+      return crypto.createHash("sha256").update(data.trim().toLowerCase()).digest("hex");
     };
 
-    // --- Event ID for deduplication ---
-    const eventId = `${body.contact_id || Date.now()}-${eventName}`;
+    // Build user data
+    const user_data = {
+      em: hashData(body.email),
+      ph: hashData(body.phone),
+      fn: hashData(body.first_name),
+      ln: hashData(body.last_name),
+      client_user_agent: req.headers["user-agent"],
+      fbp: body.fbp || null,
+      fbc: body.fbc || null,
+    };
 
-    // --- Build final payload for Meta CAPI ---
+    // Construct event
+    const event = {
+      event_name: body.event_name || "Schedule",
+      event_time: Math.floor(Date.now() / 1000),
+      action_source: "website",
+      event_source_url: body.event_source_url || "",
+      event_id: body.event_id || `${Date.now()}-${Math.random()}`,
+      user_data,
+    };
+
+    // ✅ Include test_event_code if present
+    if (body.test_event_code) {
+      event.test_event_code = body.test_event_code;
+    }
+
+    // Prepare payload
     const payload = {
-      data: [
-        {
-          event_name: eventName,
-          event_time: eventTime,
-          action_source: "website",
-          event_source_url: body.event_source_url || "https://foodfreedom.consciouseating.info",
-          user_data: userData,
-          custom_data: {
-            contact_id: body.contact_id || "",
-            source: body.contact_source || "",
-          },
-          event_id: eventId,
-        },
-      ],
-      access_token: access_token,
+      data: [event],
     };
 
-    console.log("📦 Final payload:", JSON.stringify(payload, null, 2));
-
-    // --- Send to Meta CAPI ---
-    const fbResponse = await fetch(`https://graph.facebook.com/v18.0/${pixel_id}/events`, {
+    // Send to Meta Conversion API
+    const fbResponse = await fetch(`https://graph.facebook.com/v17.0/${pixelId}/events?access_token=${accessToken}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
 
-    const fbResult = await fbResponse.json();
-    console.log("✅ Facebook CAPI Response:", fbResult);
+    const fbData = await fbResponse.json();
 
-    if (!fbResponse.ok) {
-      return res.status(400).json({ error: "Facebook API error", details: fbResult });
-    }
+    console.log("✅ Sent to Meta CAPI:", JSON.stringify(payload, null, 2));
+    console.log("📬 Meta API Response:", fbData);
 
-    return res.status(200).json({ success: true, fbResult });
+    return res.status(200).json({ success: true, fbResponse: fbData });
   } catch (err) {
-    console.error("🔥 CAPI handler error:", err);
-    return res.status(500).json({ error: "Internal server error", details: err.message });
+    console.error("❌ Error sending event to Meta:", err);
+    return res.status(500).json({ error: err.message });
   }
 }
