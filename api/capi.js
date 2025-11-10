@@ -1,66 +1,69 @@
 // api/capi.js
 
-import crypto from "crypto";
-
-// --- Helper to hash user data for Meta CAPI ---
-const sha256 = (str) => crypto.createHash("sha256").update(str).digest("hex");
-
 export default async function handler(req, res) {
+  // --- Check request method ---
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
+
   try {
-    const body = req.body;
+    // --- Environment variables ---
+    const pixel_id = process.env.META_PIXEL_ID;
+    const access_token = process.env.META_ACCESS_TOKEN;
 
-    // --- Determine event_name ---
-    // Lead for forms, Schedule for confirmed calendar bookings
-    const event_name = body.event_name || body.event_type || "Lead";
+    if (!pixel_id || !access_token) {
+      console.error("❌ Missing environment variables for Pixel ID or Access Token");
+      return res.status(500).json({ error: "Server misconfiguration: Missing Pixel ID or Access Token" });
+    }
 
-    // --- Optional deduplication ---
-    // Combine contact ID + event name to prevent Meta ignoring multiple events for same contact
-    const event_id = body.contact_id ? `${body.contact_id}-${event_name}` : undefined;
+    // --- Parse incoming data ---
+    const { event_name, event_time, event_id, user_data, custom_data, event_source_url } = req.body;
 
-    // --- Build Facebook Event payload ---
-    const fbEvent = {
+    // --- Validate required fields ---
+    if (!event_name || !event_time) {
+      return res.status(400).json({ error: "Missing required event fields (event_name, event_time)" });
+    }
+
+    // --- Build payload for Facebook CAPI ---
+    const payload = {
       data: [
         {
-          event_name, // TOP LEVEL event_name — Meta requires this
-          event_time: Math.floor(Date.now() / 1000),
+          event_name,
+          event_time,
           action_source: "website",
-          event_source_url: body.event_source_url || "https://foodfreedom.consciouseating.info",
-          user_data: {
-            em: body.email ? sha256(body.email.trim().toLowerCase()) : undefined,
-            fn: body.first_name ? sha256(body.first_name.trim().toLowerCase()) : undefined,
-            ln: body.last_name ? sha256(body.last_name.trim().toLowerCase()) : undefined,
-            ph: body.phone ? sha256(body.phone.replace(/\D/g, "")) : undefined,
-            client_ip_address: req.headers["x-forwarded-for"] || "0.0.0.0",
-            client_user_agent: req.headers["user-agent"] || "",
-          },
-          custom_data: {
-            source: body.source || "HighLevel Funnel",
-            value: body.value || 0,
-            // REMOVE event_name from custom_data — must be top-level
-          },
-          event_id, // optional deduplication
+          event_source_url: event_source_url || "https://foodfreedom.consciouseating.info",
+          event_id: event_id || `${Date.now()}-${event_name}`, // optional deduplication
+          user_data: user_data || {},
+          custom_data: custom_data || {},
         },
       ],
     };
 
-    console.log("📤 Sending to Facebook CAPI:", fbEvent);
+    console.log("📤 Sending to Facebook CAPI:", JSON.stringify(payload, null, 2));
 
-    // --- Send to Meta CAPI ---
-    const pixel_id = process.env.META_PIXEL_ID;        // your Pixel ID in Vercel env
-    const access_token = process.env.META_ACCESS_TOKEN; // your Access Token in Vercel env
-
-    fetch(`https://graph.facebook.com/v17.0/${pixel_id}/events?access_token=${access_token}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ data: fbEvent.data }),
-    });
+    // --- Send to Facebook ---
+    const response = await fetch(
+      `https://graph.facebook.com/v17.0/${pixel_id}/events?access_token=${access_token}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      }
+    );
 
     const result = await response.json();
-    console.log("✅ Facebook CAPI Response:", result);
 
-    res.status(200).json({ success: true, result });
+    // --- Handle Facebook response ---
+    if (!response.ok) {
+      console.error("❌ Facebook CAPI Error:", result);
+      return res.status(response.status).json({ error: result });
+    }
+
+    console.log("✅ Facebook CAPI Response:", result);
+    return res.status(200).json({ success: true, result });
+
   } catch (err) {
-    console.error("❌ CAPI Error:", err);
-    res.status(500).json({ success: false, error: err.message });
+    console.error("❌ CAPI Exception:", err);
+    return res.status(500).json({ error: "Internal Server Error", details: err.message });
   }
 }
