@@ -92,6 +92,9 @@ export default async function handler(req, res) {
       source: body.contact_source || body?.customData?.source || undefined,
       value: body.amount || body?.customData?.value || undefined,
       currency: body.currency || body?.customData?.currency || undefined,
+
+      // 👇 Add this line (new)
+      event_type: eventName, 
     });
 
     const payload = {
